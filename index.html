@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DEKRIPSI ENGINE v3 — AUTO DISCOVERY</title>
+<style>
+:root{
+  --bg:#f5f0e6;--ink:#000;--yellow:#ffd93d;--pink:#ff6b9d;--cyan:#4ecdc4;
+  --purple:#a78bfa;--orange:#ff8c42;--red:#ff4757;--green:#2ed573;--blue:#3b82f6;
+  --border:4px solid #000;--shadow:8px 8px 0 #000;--shadow-sm:5px 5px 0 #000;
+  --mono:'Courier New',Courier,monospace;--sans:'Arial Black','Helvetica Neue',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--mono);padding:24px;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 39px,#00000008 39px,#00000008 40px),
+    repeating-linear-gradient(90deg,transparent,transparent 39px,#00000008 39px,#00000008 40px);
+  line-height:1.5;
+}
+h1{
+  font-family:var(--sans);font-size:clamp(22px,4vw,38px);text-transform:uppercase;
+  letter-spacing:-1px;line-height:1.1;margin-bottom:6px;text-shadow:3px 3px 0 var(--pink);
+}
+.sub{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
+.tag{
+  font-family:var(--mono);font-size:11px;font-weight:bold;text-transform:uppercase;
+  padding:4px 10px;border:3px solid #000;box-shadow:3px 3px 0 #000;background:var(--cyan);
+}
+.tag:nth-child(2){background:var(--yellow)}
+.tag:nth-child(3){background:var(--purple)}
+.tag:nth-child(4){background:var(--orange)}
+.tag:nth-child(5){background:var(--green)}
+.tag:nth-child(6){background:var(--pink)}
+
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+@media(max-width:960px){.layout{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:20px}
+
+.panel{
+  background:#fff;border:var(--border);box-shadow:var(--shadow);padding:18px;position:relative;
+}
+.panel::before{
+  content:attr(data-step);position:absolute;top:-16px;left:14px;background:var(--ink);
+  color:var(--yellow);font-family:var(--sans);font-size:12px;padding:3px 10px;letter-spacing:1px;
+}
+.panel h2{
+  font-family:var(--sans);font-size:15px;text-transform:uppercase;margin-bottom:12px;
+  padding-bottom:8px;border-bottom:3px dashed #000;
+}
+label{display:block;font-size:12px;font-weight:bold;text-transform:uppercase;margin-bottom:6px;margin-top:10px}
+label:first-of-type{margin-top:0}
+input[type=file]{
+  width:100%;border:3px solid #000;background:var(--bg);padding:8px;
+  font-family:var(--mono);font-size:12px;cursor:pointer;box-shadow:var(--shadow-sm);
+}
+input[type=file]::file-selector-button{
+  background:var(--pink);border:2px solid #000;font-weight:bold;padding:6px 12px;
+  margin-right:10px;cursor:pointer;font-family:var(--mono);text-transform:uppercase;font-size:11px;
+}
+input[type=file]::file-selector-button:hover{background:var(--yellow)}
+textarea{
+  width:100%;background:#fff;color:#000;border:3px solid #000;box-shadow:var(--shadow-sm);
+  padding:10px;font-family:var(--mono);font-size:12px;resize:vertical;min-height:180px;
+}
+textarea:focus{outline:3px solid var(--cyan);outline-offset:2px}
+
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+button{
+  font-family:var(--sans);font-size:12px;text-transform:uppercase;letter-spacing:.5px;
+  background:var(--yellow);border:3px solid #000;padding:10px 16px;cursor:pointer;
+  box-shadow:var(--shadow-sm);transition:transform .08s,box-shadow .08s;
+}
+button:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 #000}
+button:active{transform:translate(3px,3px);box-shadow:2px 2px 0 #000}
+button.primary{background:var(--green);font-size:14px;padding:12px 22px;width:100%}
+button.ghost{background:#fff}
+button.cyan{background:var(--cyan)}
+button.purple{background:var(--purple)}
+button.orange{background:var(--orange)}
+button.pink{background:var(--pink)}
+button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:var(--shadow-sm)}
+
+.status{
+  margin-top:12px;padding:10px 14px;font-size:12px;font-weight:bold;
+  border:3px solid #000;display:none;text-transform:uppercase;box-shadow:var(--shadow-sm);
+}
+.status.ok{display:block;background:var(--green)}
+.status.err{display:block;background:var(--red);color:#fff}
+.status.warn{display:block;background:var(--orange)}
+.status.info{display:block;background:var(--cyan)}
+
+.pipeline{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pipe-step{
+  display:flex;align-items:center;gap:6px;background:var(--bg);border:2px solid #000;
+  padding:5px 10px;font-size:11px;font-weight:bold;text-transform:uppercase;
+  box-shadow:2px 2px 0 #000;transition:background .2s;
+}
+.pipe-step.on{background:var(--green)}
+.pipe-step.run{background:var(--yellow);animation:pulse .6s infinite alternate}
+.pipe-step.off{background:#ddd;color:#999;text-decoration:line-through}
+@keyframes pulse{to{background:var(--orange)}}
+.pipe-step .dot{width:8px;height:8px;border-radius:50%;border:2px solid #000;background:#fff}
+.pipe-step.on .dot{background:#000}
+
+/* Discovery card */
+.disc{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:10px;margin-bottom:14px;
+}
+.disc-card{
+  background:#fff;border:3px solid #000;padding:10px;box-shadow:var(--shadow-sm);
+  position:relative;
+}
+.disc-card .lbl{
+  font-size:10px;text-transform:uppercase;font-weight:bold;opacity:.7;margin-bottom:2px;
+}
+.disc-card .val{
+  font-family:var(--sans);font-size:16px;word-break:break-all;line-height:1.2;
+}
+.disc-card.found{background:var(--green)}
+.disc-card.none{background:#eee;color:#888}
+.disc-card.key{background:var(--yellow)}
+.disc-card.arr{background:var(--cyan)}
+
+pre{
+  background:#000;color:var(--green);border:3px solid #000;padding:14px;overflow:auto;
+  font-family:var(--mono);font-size:11.5px;max-height:520px;white-space:pre-wrap;
+  word-break:break-word;box-shadow:var(--shadow-sm);
+}
+pre::selection{background:var(--yellow);color:#000}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.stat{background:var(--cyan);border:3px solid #000;padding:8px;box-shadow:var(--shadow-sm);text-align:center}
+.stat .num{font-family:var(--sans);font-size:22px;line-height:1}
+.stat .lbl{font-size:10px;text-transform:uppercase;font-weight:bold;margin-top:2px}
+.stat:nth-child(2){background:var(--purple)}
+.stat:nth-child(3){background:var(--orange)}
+
+.log-box{
+  background:#fff;border:3px solid #000;padding:10px;box-shadow:var(--shadow-sm);
+  font-size:11px;max-height:160px;overflow:auto;margin-bottom:14px;font-family:var(--mono);
+}
+.log-box .line{padding:2px 0;border-bottom:1px dotted #ccc}
+.log-box .line:last-child{border:0}
+.log-box .line.ok{color:#0a7a32}
+.log-box .line.warn{color:#a05a00}
+.log-box .line.err{color:#b00020}
+
+.loader{display:none;position:fixed;inset:0;background:#0009;z-index:99;align-items:center;justify-content:center}
+.loader.on{display:flex}
+.loader-box{
+  background:var(--yellow);border:4px solid #000;padding:24px 36px;box-shadow:12px 12px 0 #000;
+  font-family:var(--sans);font-size:16px;text-transform:uppercase;text-align:center;
+}
+.spin{
+  width:32px;height:32px;border:5px solid #000;border-top-color:var(--red);
+  border-radius:50%;margin:0 auto 12px;animation:sp .7s linear infinite;
+}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+footer{
+  margin-top:30px;padding:14px;border-top:4px solid #000;font-size:11px;
+  text-transform:uppercase;font-weight:bold;display:flex;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;
+}
+</style>
+</head>
+<body>
+
+<h1>⚡ Dekripsi Engine v3</h1>
+<div class="sub">
+  <span class="tag">AUTO-DISCOVERY</span>
+  <span class="tag">String-Array</span>
+  <span class="tag">Key Finder</span>
+  <span class="tag">RC4 / XOR</span>
+  <span class="tag">Decoder Cache</span>
+  <span class="tag">Nested Resolve</span>
+</div>
+
+<div class="layout">
+
+  <!-- KIRI -->
+  <div class="col">
+
+    <div class="panel" data-step="STEP 01 — INPUT">
+      <h2>📂 Upload / Paste Source</h2>
+      <label for="fileInput">File HTML / CSS / JS</label>
+      <input type="file" id="fileInput" accept=".html,.htm,.css,.js,.txt,.json" />
+      <label for="sourceInput">Source Code</label>
+      <textarea id="sourceInput" spellcheck="false" placeholder="// paste kode terenkripsi di sini..."></textarea>
+      <div class="btn-row">
+        <button class="cyan" id="sampleBtn">🧪 Muat Contoh</button>
+        <button class="ghost" id="clearBtn">🧹 Bersihkan</button>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="decryptBtn">🚀 AUTO-DISCOVERY &amp; DEKRIPSI</button>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="panel" data-step="STEP 02 — PIPELINE">
+      <h2>⚙️ Pipeline (otomatis)</h2>
+      <div class="pipeline" id="pipelineView">
+        <div class="pipe-step" data-p="scan"><span class="dot"></span>Scan Array</div>
+        <div class="pipe-step" data-p="keys"><span class="dot"></span>Find Keys</div>
+        <div class="pipe-step" data-p="rotate"><span class="dot"></span>Rotasi</div>
+        <div class="pipe-step" data-p="decode"><span class="dot"></span>Decode</div>
+        <div class="pipe-step" data-p="cache"><span class="dot"></span>Cache</div>
+        <div class="pipe-step" data-p="replace"><span class="dot"></span>Replace</div>
+        <div class="pipe-step" data-p="nested"><span class="dot"></span>Nested</div>
+        <div class="pipe-step" data-p="score"><span class="dot"></span>Score</div>
+      </div>
+    </div>
+
+    <div class="panel" data-step="STEP 03 — TEMUAN OTOMATIS">
+      <h2>🔎 Hasil Auto-Discovery</h2>
+      <div class="disc" id="discovery">
+        <div class="disc-card none" id="cardArr">
+          <div class="lbl">String-Array</div>
+          <div class="val" id="vArr">—</div>
+        </div>
+        <div class="disc-card none" id="cardKey">
+          <div class="lbl">Kunci Terdeteksi</div>
+          <div class="val" id="vKey">—</div>
+        </div>
+        <div class="disc-card none" id="cardMethod">
+          <div class="lbl">Metode Decode</div>
+          <div class="val" id="vMethod">—</div>
+        </div>
+        <div class="disc-card none" id="cardRot">
+          <div class="lbl">Rotasi</div>
+          <div class="val" id="vRot">—</div>
+        </div>
+      </div>
+      <label style="margin-top:6px">Log Discovery</label>
+      <div class="log-box" id="logBox">
+        <div class="line">// belum ada pemindaian</div>
+      </div>
+      <div class="btn-row">
+        <button class="purple" id="dictBtn">🔍 Lihat Kamus Decode</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- KANAN -->
+  <div class="col">
+    <div class="panel" data-step="STEP 04 — HASIL">
+      <h2>📊 Statistik &amp; Output</h2>
+      <div class="stats">
+        <div class="stat"><div class="num" id="statItems">0</div><div class="lbl">Item Array</div></div>
+        <div class="stat"><div class="num" id="statCache">0</div><div class="lbl">Cache Hit</div></div>
+        <div class="stat"><div class="num" id="statRefs">0</div><div class="lbl">Ref Diganti</div></div>
+      </div>
+      <div class="btn-row">
+        <button class="pink" id="copyBtn">📋 Salin</button>
+        <button class="orange" id="downloadBtn">⬇️ Unduh</button>
+      </div>
+      <label style="margin-top:16px">Output</label>
+      <pre id="output">// — belum ada hasil —</pre>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>DECRYPTION ENGINE v3 · AUTO DISCOVERY</span>
+  <span>ALL CLIENT-SIDE · VERCEL READY</span>
+</footer>
+
+<div class="loader" id="loader"><div class="loader-box"><div class="spin"></div>Auto-Scanning...</div></div>
+
+<script>
+/* ============================================================
+   UTIL
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const sourceInput = $('sourceInput');
+const outputEl = $('output');
+const statusEl = $('status');
+const logBox = $('logBox');
+
+function setStatus(msg, type='ok'){
+  statusEl.className = 'status ' + type;
+  statusEl.textContent = msg;
+}
+function showLoader(on){ $('loader').classList.toggle('on', on); }
+function updatePipeline(active, running=''){
+  document.querySelectorAll('.pipe-step').forEach(el=>{
+    const p = el.dataset.p;
+    el.classList.toggle('on', active.includes(p));
+    el.classList.toggle('off', !active.includes(p));
+    el.classList.toggle('run', p === running);
+  });
+}
+function logLine(msg, type=''){
+  const d = document.createElement('div');
+  d.className = 'line ' + type;
+  d.textContent = msg;
+  logBox.appendChild(d);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+function clearLog(){
+  logBox.innerHTML = '<div class="line">// pemindaian baru</div>';
+}
+function setCard(cardId, valId, value, found){
+  const c = $(cardId);
+  c.classList.remove('none','found','key','arr');
+  c.classList.add(found ? 'found' : 'none');
+  $(valId).textContent = value || '—';
+}
+
+/* ============================================================
+   CRYPTO PRIMITIVES
+   ============================================================ */
+function rc4(key, data){
+  const s = new Uint8Array(256);
+  for(let i=0;i<256;i++) s[i]=i;
+  let j=0;
+  for(let i=0;i<256;i++){
+    j=(j+s[i]+key.charCodeAt(i%key.length))&255;
+    [s[i],s[j]]=[s[j],s[i]];
+  }
+  let i=0;j=0;
+  const out=new Uint8Array(data.length);
+  for(let k=0;k<data.length;k++){
+    i=(i+1)&255;j=(j+s[i])&255;
+    [s[i],s[j]]=[s[j],s[i]];
+    out[k]=data[k]^s[(s[i]+s[j])&255];
+  }
+  return out;
+}
+function b64ToBytes(b64){
+  const bin=atob(b64.replace(/\s+/g,''));
+  const out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
+}
+function bytesToStr(bytes){
+  try{ return new TextDecoder('utf-8',{fatal:true}).decode(bytes); }
+  catch{ return new TextDecoder('latin1').decode(bytes); }
+}
+function hexToBytes(hex){
+  hex=hex.replace(/[^0-9a-fA-F]/g,'');
+  if(hex.length%2) hex='0'+hex;
+  const out=new Uint8Array(hex.length/2);
+  for(let i=0;i<out.length;i++) out[i]=parseInt(hex.substr(i*2,2),16);
+  return out;
+}
+function xorBytes(bytes,key){
+  const out=new Uint8Array(bytes.length);
+  for(let i=0;i<bytes.length;i++) out[i]=bytes[i]^key.charCodeAt(i%key.length);
+  return out;
+}
+function rot13(s){
+  return s.replace(/[a-zA-Z]/g,c=>{
+    const b=c<='Z'?65:97;
+    return String.fromCharCode((c.charCodeAt(0)-b+13)%26+b);
+  });
+}
+
+/* ============================================================
+   AUTO-DISCOVERY: STRING ARRAY (7 POLA)
+   ============================================================ */
+function discoverArrays(src){
+  const found = [];
+  const seen = new Set();
+  const push = (name, items) => {
+    if(!name || seen.has(name) || !items.length) return;
+    seen.add(name);
+    found.push({name, items});
+  };
+
+  // 1) var/let/const NAME = ['..', '..'];
+  const re1 = /(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*\[\s*((?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?:\s*,\s*(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"))*)\s*\]/g;
+  let m;
+  while((m=re1.exec(src))){
+    const items = [];
+    const strRe = /'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g;
+    let sm;
+    while((sm=strRe.exec(m[2]))) items.push(sm[1]!==undefined?sm[1]:sm[2]);
+    if(items.length >= 2) push(m[1], items);
+  }
+
+  // 2) function NAME(){ const A = [...]; ... A; }
+  const re2 = /function\s+([A-Za-z_$][\w$]*)\s*\(\s*\)\s*\{[\s\S]*?=\s*\[\s*([\s\S]*?)\]\s*;[\s\S]*?return\s+\1\s*\(\s*\)/g;
+  while((m=re2.exec(src))){
+    const items = [];
+    const strRe = /'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g;
+    let sm;
+    while((sm=strRe.exec(m[2]))) items.push(sm[1]!==undefined?sm[1]:sm[2]);
+    if(items.length >= 2) push(m[1], items);
+  }
+
+  // 3) (function(){ const A = [...]; ... })()
+  const re3 = /\(\s*function\s*\(\s*\)\s*\{[\s\S]*?(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*\[\s*([\s\S]*?)\]\s*;/g;
+  while((m=re3.exec(src))){
+    const items = [];
+    const strRe = /'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g;
+    let sm;
+    while((sm=strRe.exec(m[2]))) items.push(sm[1]!==undefined?sm[1]:sm[2]);
+    if(items.length >= 3) push(m[1], items);
+  }
+
+  // 4) object map { a:'..', b:'..' } dengan banyak properti string
+  const re4 = /(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*\{([\s\S]*?)\}\s*;?/g;
+  while((m=re4.exec(src))){
+    const body = m[2];
+    const kvRe = /['"]?([\w$]+)['"]?\s*:\s*['"]([^'"]{2,})['"]/g;
+    const items = [];
+    let km;
+    while((km=kvRe.exec(body))) items.push(km[2]);
+    if(items.length >= 5) push(m[1], items);
+  }
+
+  // 5) array of arrays: NAME = [['..','..'],['..']]
+  const re5 = /(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*\[\s*\[\s*([\s\S]*?)\]\s*\]/g;
+  while((m=re5.exec(src))){
+    const items = [];
+    const strRe = /'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g;
+    let sm;
+    while((sm=strRe.exec(m[2]))) items.push(sm[1]!==undefined?sm[1]:sm[2]);
+    if(items.length >= 2) push(m[1], items);
+  }
+
+  // 6) NAME = "a|b|c".split("|")
+  const re6 = /(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*['"]([^'"]{4,})['"]\s*\.\s*split\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  while((m=re6.exec(src))){
+    const items = m[2].split(m[3]);
+    if(items.length >= 2) push(m[1], items);
+  }
+
+  // 7) concat multi array: NAME = ['..'].concat(['..'])
+  const re7 = /(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*\[\s*([\s\S]*?)\]\s*\.\s*concat\s*\(\s*\[\s*([\s\S]*?)\]\s*\)/g;
+  while((m=re7.exec(src))){
+    const items = [];
+    const strRe = /'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g;
+    let sm;
+    while((sm=strRe.exec(m[2]+','+m[3]))) items.push(sm[1]!==undefined?sm[1]:sm[2]);
+    if(items.length >= 2) push(m[1], items);
+  }
+
+  return found;
+}
+
+/* ============================================================
+   AUTO-DISCOVERY: KEY (12 strategi)
+   ============================================================ */
+function discoverKeys(src){
+  const found = new Set();
+  const add = k => {
+    if(typeof k === 'string' && k.length >= 3 && k.length <= 128 && !/^[0-9]+$/.test(k)) found.add(k);
+  };
+
+  // 1) decode('kunci')
+  for(const m of src.matchAll(/[A-Za-z_$][\w$]*\s*\(\s*['"]([^'"]{3,128})['"]\s*\)/g)) add(m[1]);
+
+  // 2) function name(a, KEY) { ... rc4(KEY, ...) }
+  for(const m of src.matchAll(/function\s+[A-Za-z_$][\w$]*\s*\(\s*[A-Za-z_$][\w$]*\s*,\s*([A-Za-z_$][\w$]*)\s*\)/g)){
+    const v = m[1];
+    const re = new RegExp(`(?:var|let|const)\\s+${v}\\s*=\\s*['"]([^'"]{3,128})['"]`);
+    const mm = src.match(re);
+    if(mm) add(mm[1]);
+  }
+
+  // 3) var key = '...'; var secret = '...';
+  for(const m of src.matchAll(/(?:var|let|const)\s+(?:key|secret|pass|kunci|pwd|token)\s*=\s*['"]([^'"]{3,128})['"]/gi)) add(m[1]);
+
+  // 4) rc4('kunci', ...) / xor('kunci', ...)
+  for(const m of src.matchAll(/(?:rc4|xor|decrypt|dec|unmask)\s*\(\s*['"]([^'"]{3,128})['"]/gi)) add(m[1]);
+
+  // 5) atob('...') diikuti rc4 → kemungkinan key base64
+  for(const m of src.matchAll(/atob\s*\(\s*['"]([^'"]{4,128})['"]\s*\)/g)){
+    try{ add(bytesToStr(b64ToBytes(m[1]))); }catch{}
+  }
+
+  // 6) KEY di argumen fungsi IIFE: }('kunci', ...)
+  for(const m of src.matchAll(/\}\s*\(\s*['"]([^'"]{3,128})['"]/g)) add(m[1]);
+
+  // 7) array literal tunggal: ['kunci'][0]
+  for(const m of src.matchAll(/\[\s*['"]([^'"]{3,128})['"]\s*\]\s*\[\s*0\s*\]/g)) add(m[1]);
+
+  // 8) concat multi: 'a'+'b'+'c'
+  for(const m of src.matchAll(/(?:key|secret|kunci)\s*[:=]\s*((?:['"][^'"]*['"]\s*\+\s*)+['"][^'"]*['"])/gi)){
+    const parts = [...m[1].matchAll(/['"]([^'"]*)['"]/g)].map(x=>x[1]);
+    if(parts.length) add(parts.join(''));
+  }
+
+  // 9) array join: ['a','b'].join('')
+  for(const m of src.matchAll(/\[\s*([^\]]+)\s*\]\s*\.\s*join\s*\(\s*['"][^'"]*['"]\s*\)/g)){
+    const parts = [...m[1].matchAll(/['"]([^'"]*)['"]/g)].map(x=>x[1]);
+    if(parts.length >= 2) add(parts.join(''));
+  }
+
+  // 10) reverse string: '...'.split('').reverse().join('')
+  for(const m of src.matchAll(/['"]([^'"]{3,128})['"]\s*\.\s*split\s*\(\s*['"]['"]\s*\)\s*\.\s*reverse\s*\(\s*\)/g)){
+    add(m[1].split('').reverse().join(''));
+  }
+
+  // 11) hex string '0x..' sebagai key
+  for(const m of src.matchAll(/['"]((?:[0-9a-fA-F]{2}){4,32})['"]/g)) add(m[1]);
+
+  // 12) fallback: string literal panjang yang sering jadi key di obfuscator
+  const fbRe = /['"]([A-Za-z0-9!@#$%^&*_\-]{6,64})['"]/g;
+  let fm, fbCount=0;
+  while((fm=fbRe.exec(src)) && fbCount<30){
+    const v = fm[1];
+    if(/^[A-Za-z0-9!@#$%^&*_\-]{6,64}$/.test(v)){ add(v); fbCount++; }
+  }
+
+  return [...found];
+}
+
+/* ============================================================
+   AUTO-DISCOVERY: ROTASI
+   ============================================================ */
+function detectRotation(src, arrName){
+  const esc = arrName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  if(new RegExp(`while\\s*\\(\\s*--\\s*${esc}\\s*\\)\\s*\\{[\\s\\S]*?push\\s*\\(\\s*${esc}\\s*\\.\\s*shift\\s*\\(\\s*\\)\\s*\\)`,'g').test(src)) return true;
+  if(/while\s*\(\s*!!\s*\[\s*\]\s*\)\s*\{[\s\S]*?shift\s*\(\s*\)/.test(src)) return true;
+  if(/while\s*\(\s*true\s*\)\s*\{[\s\S]*?shift\s*\(\s*\)/.test(src)) return true;
+  return false;
+}
+function applyFullRotation(arr){
+  const a = arr.slice();
+  for(let i=0;i<a.length;i++) a.push(a.shift());
+  return a;
+}
+
+/* ============================================================
+   DECODE ITEM — MULTI METODE + SKOR
+   ============================================================ */
+function scoreText(s){
+  let sc = 0;
+  for(const c of s){
+    if(/[a-zA-Z]/.test(c)) sc += 3;
+    else if(/\s/.test(c)) sc += 2;
+    else if(/[0-9]/.test(c)) sc += 1;
+    else if(c.charCodeAt(0) < 32) sc -= 5;
+    else if(/[{}();=+\-*/<>\[\].,:'"`]/.test(c)) sc += 2;
+  }
+  return sc;
+}
+function decodeItem(raw, key){
+  const cands = [];
+  const push = (label,v) => {
+    if(typeof v==='string' && v.length && !/^[\x00-\x1F]*$/.test(v)){
+      cands.push({label, value:v, score:scoreText(v)});
+    }
+  };
+  try{ push('base64', bytesToStr(b64ToBytes(raw))); }catch{}
+  if(key){
+    try{ push('base64+XOR', bytesToStr(xorBytes(b64ToBytes(raw), key))); }catch{}
+    if(/^[0-9a-fA-F\s]+$/.test(raw)){
+      try{ push('hex+RC4', bytesToStr(rc4(key, hexToBytes(raw)))); }catch{}
+    }
+    try{ push('base64+RC4', bytesToStr(rc4(key, b64ToBytes(raw)))); }catch{}
+    try{
+      const b = new Uint8Array([...raw].map(c=>c.charCodeAt(0)));
+      push('XOR', bytesToStr(xorBytes(b, key)));
+    }catch{}
+    try{
+      const s = bytesToStr(rc4(key, b64ToBytes(raw)));
+      push('RC4+rev', s.split('').reverse().join(''));
+    }catch{}
+  }
+  push('ROT13', rot13(raw));
+  if(!cands.length) return raw;
+  cands.sort((a,b)=>b.score-a.score);
+  return cands[0].value;
+}
+
+/* ============================================================
+   AUTO-DISCOVERY + PIPELINE
+   ============================================================ */
+function runAuto(source){
+  const log = [];
+  const stats = {items:0, cache:0, refs:0, arrays:0};
+
+  // A) Scan arrays
+  updatePipeline(['scan'], 'scan');
+  const arrays = discoverArrays(source);
+  if(!arrays.length) throw new Error('Tidak ada string-array yang terdeteksi.');
+  stats.arrays = arrays.length;
+  log.push(`✔ ${arrays.length} array ditemukan: ${arrays.map(a=>a.name+'('+a.items.length+')').join(', ')}`);
+
+  // B) Find keys
+  updatePipeline(['scan','keys'], 'keys');
+  const keys = discoverKeys(source);
+  if(keys.length) log.push(`✔ ${keys.length} kandidat kunci: ${keys.slice(0,5).map(k=>`"${k}"`).join(', ')}${keys.length>5?'…':''}`);
+  else log.push('⚠ Tidak ada kunci eksplisit — fallback ke metode tanpa key.');
+
+  // C) Pilih kombinasi terbaik
+  updatePipeline(['scan','keys','rotate','decode'], 'score');
+  let best = null;
+  const keyCandidates = keys.length ? keys : [null];
+
+  for(const arr of arrays){
+    let items = arr.items.slice();
+    const rotated = detectRotation(source, arr.name);
+    if(rotated) items = applyFullRotation(items);
+
+    for(const key of keyCandidates){
+      const decoded = items.map(raw => decodeItem(raw, key));
+      const totalScore = decoded.reduce((s,v)=>s+scoreText(v),0) / decoded.length;
+      if(!best || totalScore > best.score){
+        best = {arr, items, key, decoded, score: totalScore, rotated};
+      }
+    }
+  }
+
+  log.push(`✔ Kombinasi terbaik: array "${best.arr.name}", key ${best.key?`"${best.key}"`:'(tanpa key)'}, skor ${best.score.toFixed(1)}`);
+  if(best.rotated) log.push('✔ Rotasi diterapkan (while(--x){push(shift())}).');
+
+  // D) Decoder cache + replace
+  updatePipeline(['scan','keys','rotate','decode','cache'], 'cache');
+  const cache = new Map();
+  const dict = {};
+  best.decoded.forEach((v,i)=>{ cache.set(best.items[i], v); });
+  best.decoded.forEach((v,i)=>{ dict[i]=v; dict['0x'+i.toString(16)]=v; });
+  stats.items = best.items.length;
+
+  updatePipeline(['scan','keys','rotate','decode','cache','replace'], 'replace');
+  let out = source;
+  const esc = best.arr.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const refRe = new RegExp(`${esc}\\s*\\[\\s*(0x[0-9a-fA-F]+|\\d+)\\s*\\]`,'g');
+  out = out.replace(refRe,(m,idx)=>{
+    const n = idx.startsWith('0x')?parseInt(idx,16):parseInt(idx,10);
+    if(dict[n]!==undefined){ stats.refs++; return JSON.stringify(dict[n]); }
+    return m;
+  });
+
+  // E) Nested resolve
+  updatePipeline(['scan','keys','rotate','decode','cache','replace','nested'], 'nested');
+  let pass = 0, prev;
+  do{
+    prev = out;
+    for(const arr of arrays){
+      const e = arr.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      const re = new RegExp(`"\\\\?"?${e}\\s*\\[\\s*(0x[0-9a-fA-F]+|\\d+)\\s*\\]\\\\?"?`,'g');
+      out = out.replace(re,(m,idx)=>{
+        const n = idx.startsWith('0x')?parseInt(idx,16):parseInt(idx,10);
+        const v = dict[n];
+        if(v!==undefined){ stats.refs++; return JSON.stringify(v); }
+        return m;
+      });
+    }
+    pass++;
+  }while(out!==prev && pass<3);
+
+  // F) Statistik cache
+  updatePipeline(['scan','keys','rotate','decode','cache','replace','nested','score'], 'score');
+  stats.cache = best.items.length - cache.size;
+  log.push(`✔ Cache: ${cache.size} entri unik, ${stats.cache} hit.`);
+  log.push(`✔ Referensi diganti: ${stats.refs}`);
+
+  return {log, stats, out, best, dict, arrays, keys};
+}
+
+/* ============================================================
+   CONTOH
+   ============================================================ */
+function buildSample(){
+  const key = 'r4h4s1a!23';
+  const plain = [
+    'console.log("Halo dari decoder cache");',
+    'document.title = "Dekripsi Berhasil";',
+    'alert("Tool berjalan ✅");',
+    'function init(){ return "nested " + _0xabc123[0x0]; }',
+    'var cfg = { mode:"debug", level:9 };'
+  ];
+  const enc = plain.map(t=>{
+    const bytes = new TextEncoder().encode(t);
+    return btoa(String.fromCharCode(...rc4(key, bytes)));
+  });
+  return `/* SAMPLE AUTO-DISCOVERY */
+var _0xabc123 = [
+  "${enc[0]}",
+  "${enc[1]}",
+  "${enc[2]}",
+  "${enc[3]}",
+  "${enc[4]}"
+];
+(function(_0xarr, _0xkey){
+  while(--_0xarr){
+    _0xarr.push(_0xarr.shift());
+  }
+})(_0xabc123, '${key}');
+
+console.log(_0xabc123[0x0]);
+document.title = _0xabc123[0x1];
+_0xabc123[0x2];
+_0xabc123[0x3];
+console.log(_0xabc123[0x4]);
+`;
+}
+
+/* ============================================================
+   UI WIRING
+   ============================================================ */
+$('fileInput').addEventListener('change', async e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const text = await f.text();
+  sourceInput.value = text;
+  setStatus(`File "${f.name}" dimuat (${text.length} karakter).`,'ok');
+});
+$('sampleBtn').addEventListener('click', ()=>{
+  sourceInput.value = buildSample();
+  setStatus('Contoh dimuat — klik AUTO-DISCOVERY.','warn');
+});
+$('clearBtn').addEventListener('click', ()=>{
+  sourceInput.value = '';
+  outputEl.textContent = '// — belum ada hasil —';
+  statusEl.className = 'status';
+  $('fileInput').value = '';
+  clearLog();
+  ['statItems','statCache','statRefs'].forEach(id=>$(id).textContent='0');
+  setCard('cardArr','vArr','—',false);
+  setCard('cardKey','vKey','—',false);
+  setCard('cardMethod','vMethod','—',false);
+  setCard('cardRot','vRot','—',false);
+  updatePipeline([]);
+});
+
+$('decryptBtn').addEventListener('click', async ()=>{
+  try{
+    const src = sourceInput.value.trim();
+    if(!src) return setStatus('Source masih kosong.','err');
+    clearLog();
+    showLoader(true);
+    await new Promise(r=>setTimeout(r,30));
+
+    const res = runAuto(src);
+
+    // update stats
+    $('statItems').textContent = res.stats.items;
+    $('statCache').textContent = res.stats.cache;
+    $('statRefs').textContent  = res.stats.refs;
+
+    // discovery cards
+    const arrLabel = res.best.arr.name;
+    setCard('cardArr','vArr', `${arrLabel} (${res.best.arr.items.length})`, true);
+    setCard('cardKey','vKey', res.best.key ? `"${res.best.key}"` : '(tanpa key)', !!res.best.key);
+    const methodGuess = res.best.key ? 'RC4/XOR + Base64' : 'Base64';
+    setCard('cardMethod','vMethod', methodGuess, true);
+    setCard('cardRot','vRot', res.best.rotated ? 'Ya' : 'Tidak', res.best.rotated);
+
+    // log
+    res.log.forEach(l=>{
+      const t = l.startsWith('✔') ? 'ok' : l.startsWith('⚠') ? 'warn' : '';
+      logLine(l, t);
+    });
+
+    // output
+    const header =
+      '===== AUTO-DISCOVERY LOG =====\n' + res.log.join('\n') +
+      `\n\n===== STATISTIK =====\n` +
+      `Array: ${res.stats.arrays}\n` +
+      `Item: ${res.stats.items}\n` +
+      `Cache hit: ${res.stats.cache}\n` +
+      `Ref diganti: ${res.stats.refs}\n` +
+      `Kunci terpilih: ${res.best.key ? `"${res.best.key}"` : '(tanpa key)'}\n` +
+      `Array terpilih: ${res.best.arr.name}\n\n` +
+      `===== HASIL =====\n\n`;
+    outputEl.textContent = header + res.out;
+
+    setStatus(`Selesai. Array ${res.best.arr.name}, key ${res.best.key ? '"'+res.best.key+'"' : 'auto-skip'}, ${res.stats.refs} ref diganti.`,'ok');
+
+    // simpan untuk dict
+    window.__lastResult = res;
+  }catch(err){
+    setStatus('Gagal: ' + err.message, 'err');
+    outputEl.textContent = '// — gagal —\n' + err.message;
+    logLine('✘ ' + err.message, 'err');
+  }finally{
+    showLoader(false);
+  }
+});
+
+$('copyBtn').addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(outputEl.textContent);
+    setStatus('Hasil disalin ke clipboard.','ok');
+  }catch{ setStatus('Gagal salin — Ctrl+C manual.','err'); }
+});
+
+$('downloadBtn').addEventListener('click', ()=>{
+  const blob = new Blob([outputEl.textContent], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'hasil-dekripsi.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus('File hasil diunduh.','ok');
+});
+
+$('dictBtn').addEventListener('click', ()=>{
+  const res = window.__lastResult;
+  if(!res) return setStatus('Belum ada hasil. Jalankan AUTO-DISCOVERY dulu.','err');
+  const lines = ['===== KAMUS DECODE =====\n', `Array: ${res.best.arr.name}`, `Key: ${res.best.key || '(tanpa)'}`, ''];
+  res.best.decoded.forEach((v,i)=>{
+    lines.push(`  [${i}] (0x${i.toString(16)}) = ${JSON.stringify(v)}`);
+  });
+  outputEl.textContent = lines.join('\n');
+  setStatus('Kamus decode ditampilkan.','ok');
+});
+</script>
+</body>
+</html>
